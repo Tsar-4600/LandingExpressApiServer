@@ -21,13 +21,14 @@ app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
 }); 
 // Новый endpoint для обработки заявок
-app.post('/api/submit-application', (req, res) => {
+app.post('/api/submit', (req, res) => {
     try {
-        const { name, phone } = req.body;
+        const { name, phone, model } = req.body;
         
         console.log('📨 Получена новая заявка:');
         console.log('👤 Имя:', name);
         console.log('📞 Телефон:', phone);
+        console.log('🚗 Модель:', model);
         console.log('⏰ Время:', new Date().toLocaleString());
         console.log('---');
         
