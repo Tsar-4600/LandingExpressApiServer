@@ -54,6 +54,13 @@ const validateRequest = (fields) => {
         next();
     };
 };
+// Часовой пояс 
+const getMoscowTime = () => {
+    return new Date().toLocaleString('ru-RU', {
+        timeZone: 'Europe/Moscow',
+        hour12: false
+    });
+};
 
 // Ваши данные (можно вынести в отдельный файл)
 const productsData = require('./products');
@@ -77,7 +84,7 @@ app.post('/api/submit-model', validateRequest(['name', 'phone', 'model']), (req,
         console.log('👤 Имя:', name.trim());
         console.log('📞 Телефон:', phone);
         console.log('🚗 Модель:', model.trim());
-        console.log('⏰ Время:', new Date().toLocaleString());
+        console.log('⏰ Время:', getMoscowTime())
         console.log('---');
         
         // Здесь можно добавить сохранение в базу данных
@@ -104,7 +111,7 @@ app.post('/api/submit-SpeacialLease', validateRequest(['name', 'phone']), (req, 
         console.log('📨 Получена новая заявка на специальный лизинг:');
         console.log('👤 Имя:', name.trim());
         console.log('📞 Телефон:', phone);
-        console.log('⏰ Время:', new Date().toLocaleString());
+        console.log('⏰ Время:', getMoscowTime())
         console.log('---');
         
         // Здесь можно добавить:
@@ -133,7 +140,7 @@ app.post('/api/submit-contacts', validateRequest(['name', 'phone']), (req, res) 
         console.log('📨 Получены новые контактные данные:');
         console.log('👤 Имя:', name.trim());
         console.log('📞 Телефон:', phone);
-        console.log('⏰ Время:', new Date().toLocaleString());
+        console.log('⏰ Время:', getMoscowTime())
         console.log('---');
         
         // Здесь можно добавить:
