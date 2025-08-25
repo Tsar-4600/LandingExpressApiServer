@@ -10,7 +10,15 @@ const app = express();
 const PORT = 3001;
 
 // Middleware
-app.use(cors());
+app.use(cors({
+    origin: [
+        'https://zoomlion.gkvertikal.ru',
+    ],
+    methods: ['GET', 'POST', 'OPTIONS'], // только необходимые методы
+    allowedHeaders: ['Content-Type', 'Authorization'], // только необходимые заголовки
+    credentials: false, // true только если используете куки/авторизацию
+    optionsSuccessStatus: 200 // для legacy браузеров
+}));
 app.use(express.json());
 
 // Валидационные функции
@@ -69,12 +77,12 @@ const getMoscowTime = () => {
 //limiter запросов
 
 const limiter = rateLimit({
-	windowMs: 45 * 60 * 1000, // 45 minutes
-	limit: 1, // Limit each IP to 100 requests per `window` (here, per 1 minute).
-	standardHeaders: 'draft-8', // draft-6: `RateLimit-*` headers; draft-7 & draft-8: combined `RateLimit` header
-	legacyHeaders: false, // Disable the `X-RateLimit-*` headers.
-	ipv6Subnet: 64, // Set to 60 or 64 to be less aggressive, or 52 or 48 to be more aggressive
-	// store: ... , // Redis, Memcached, etc. See below.
+    windowMs: 45 * 60 * 1000, // 45 minutes
+    limit: 1, // Limit each IP to 100 requests per `window` (here, per 1 minute).
+    standardHeaders: 'draft-8', // draft-6: `RateLimit-*` headers; draft-7 & draft-8: combined `RateLimit` header
+    legacyHeaders: false, // Disable the `X-RateLimit-*` headers.
+    ipv6Subnet: 64, // Set to 60 or 64 to be less aggressive, or 52 or 48 to be more aggressive
+    // store: ... , // Redis, Memcached, etc. See below.
 })
 
 // Интеграция заявки с calltouch
@@ -218,7 +226,7 @@ app.post('/api/submit-model', limiter, validateRequest(['name', 'phone', 'model'
     }
 });
 
-app.post('/api/submit-SpeacialLease', limiter, validateRequest(['name', 'phone']), async(req, res) => {
+app.post('/api/submit-SpeacialLease', limiter, validateRequest(['name', 'phone']), async (req, res) => {
     try {
         const { name, phone } = req.body;
 
@@ -239,7 +247,7 @@ app.post('/api/submit-SpeacialLease', limiter, validateRequest(['name', 'phone']
         });
 
 
-         // Отправляем данные в CallTouch через POST
+        // Отправляем данные в CallTouch через POST
         const calltouchResult = await sendToCallTouch({
             subject: `zoomlion.gkvertikal.ru заявка на спец Лизинг`,
             name: name.trim(),
@@ -257,7 +265,7 @@ app.post('/api/submit-SpeacialLease', limiter, validateRequest(['name', 'phone']
     }
 });
 
-app.post('/api/submit-contacts', limiter, validateRequest(['name', 'phone']), async(req, res) => {
+app.post('/api/submit-contacts', limiter, validateRequest(['name', 'phone']), async (req, res) => {
     try {
         const { name, phone } = req.body;
 
@@ -276,9 +284,9 @@ app.post('/api/submit-contacts', limiter, validateRequest(['name', 'phone']), as
             success: true,
             message: 'Контактные данные успешно получены',
         });
-        
 
-         // Отправляем данные в CallTouch через POST
+
+        // Отправляем данные в CallTouch через POST
         const calltouchResult = await sendToCallTouch({
             subject: `zoomlion.gkvertikal.ru заявка из секции контактов`,
             name: name.trim(),
