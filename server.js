@@ -9,6 +9,8 @@ const rateLimit = require('express-rate-limit');
 const app = express();
 const PORT = 3001;
 
+app.set('trust proxy', 1); // Доверяем первому прокси (nginx)
+
 // Middleware
 app.use(cors({
     origin: [
