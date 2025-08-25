@@ -1,6 +1,10 @@
 // server.js
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const https = require('https');
+const querystring = require('querystring');
+
 const app = express();
 const PORT = 3001;
 
@@ -30,19 +34,19 @@ const validateModel = (model) => {
 const validateRequest = (fields) => {
     return (req, res, next) => {
         const errors = [];
-        
+
         if (fields.includes('name') && !validateName(req.body.name)) {
             errors.push('Имя должно быть от 2 до 50 символов');
         }
-        
+
         if (fields.includes('phone') && !validatePhone(req.body.phone)) {
             errors.push('Неверный формат телефона');
         }
-        
+
         if (fields.includes('model') && !validateModel(req.body.model)) {
             errors.push('Модель не может быть пустой');
         }
-        
+
         if (errors.length > 0) {
             return res.status(400).json({
                 success: false,
@@ -50,7 +54,7 @@ const validateRequest = (fields) => {
                 errors: errors
             });
         }
-        
+
         next();
     };
 };
@@ -59,6 +63,95 @@ const getMoscowTime = () => {
     return new Date().toLocaleString('ru-RU', {
         timeZone: 'Europe/Moscow',
         hour12: false
+    });
+};
+
+// Интеграция заявки с calltouch
+
+const sendToCallTouch = (data) => {
+    return new Promise((resolve, reject) => {
+        try {
+            const params = {
+                subject: data.subject || 'Заявка с сайта zoomlion.gkvertikal.ru',
+                requestUrl: data.requestUrl || `${process.env.SITE_URL}`,
+                fio: data.name || '',
+                phoneNumber: data.phone || '',
+                ...(data.model && { model: data.model })
+            };
+
+            const postData = querystring.stringify(params);
+
+            const options = {
+                hostname: `${process.env.CALLTOUCH_HOST}`,
+                port: 443,
+                path: `${process.env.CALLTOUCH_API_PATH}/${process.env.CALLTOUCH_SITE_ID}/register/`,
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'Content-Length': Buffer.byteLength(postData)
+                }
+            };
+
+            console.log('📤 Отправка POST в CallTouch:', params);
+
+            const req = https.request(options, (response) => {
+                let responseData = '';
+
+                response.on('data', (chunk) => {
+                    responseData += chunk;
+                });
+
+                response.on('end', () => {
+                    try {
+                        const parsedData = JSON.parse(responseData);
+                        console.log('✅ CallTouch ответил успешно');
+                        resolve({
+                            success: true,
+                            data: parsedData,
+                            statusCode: response.statusCode
+                        });
+                    } catch (parseError) {
+                        console.log('✅ CallTouch ответил (не JSON):', responseData);
+                        resolve({
+                            success: true,
+                            data: responseData,
+                            statusCode: response.statusCode
+                        });
+                    }
+                });
+            });
+
+            req.on('error', (error) => {
+                console.error('❌ Ошибка сети:', error.message);
+                resolve({
+                    success: false,
+                    error: error.message,
+                    statusCode: 0
+                });
+            });
+
+            req.setTimeout(10000, () => {
+                req.destroy();
+                console.error('⏰ Таймаут запроса к CallTouch');
+                resolve({
+                    success: false,
+                    error: 'Timeout',
+                    statusCode: 0
+                });
+            });
+
+            // Отправляем данные
+            req.write(postData);
+            req.end();
+
+        } catch (error) {
+            console.error('❌ Ошибка формирования запроса:', error.message);
+            resolve({
+                success: false,
+                error: error.message,
+                statusCode: 0
+            });
+        }
     });
 };
 
@@ -76,25 +169,35 @@ app.listen(PORT, () => {
 });
 
 // Новый endpoint для обработки заявок
-app.post('/api/submit-model', validateRequest(['name', 'phone', 'model']), (req, res) => {
+app.post('/api/submit-model', validateRequest(['name', 'phone', 'model']), async (req, res) => {
     try {
         const { name, phone, model } = req.body;
-        
+
         console.log('📨 Получена новая заявка:');
         console.log('👤 Имя:', name.trim());
         console.log('📞 Телефон:', phone);
         console.log('🚗 Модель:', model.trim());
         console.log('⏰ Время:', getMoscowTime())
         console.log('---');
-        
+
         // Здесь можно добавить сохранение в базу данных
         // или отправку email уведомления
-        
+
         res.status(200).json({
             success: true,
             message: 'Заявка успешно принята',
         });
-        
+
+        // Отправляем данные в CallTouch через POST
+        const calltouchResult = await sendToCallTouch({
+            subject: `zoomlion.gkvertikal.ru Заявка на модель: ${model}`,
+            name: name.trim(),
+            phone: phone,
+            model: model.trim(),
+            requestUrl: req.headers.referer || 'https://zoomlion.gkvertikal.ru/'
+        });
+        console.log('📊 Статус отправки в CallTouch:', calltouchResult.success ? 'Успех' : 'Ошибка');
+
     } catch (error) {
         console.error('❌ Ошибка при обработке заявки:', error);
         res.status(500).json({
@@ -104,26 +207,36 @@ app.post('/api/submit-model', validateRequest(['name', 'phone', 'model']), (req,
     }
 });
 
-app.post('/api/submit-SpeacialLease', validateRequest(['name', 'phone']), (req, res) => {
+app.post('/api/submit-SpeacialLease', validateRequest(['name', 'phone']), async(req, res) => {
     try {
         const { name, phone } = req.body;
-        
+
         console.log('📨 Получена новая заявка на специальный лизинг:');
         console.log('👤 Имя:', name.trim());
         console.log('📞 Телефон:', phone);
         console.log('⏰ Время:', getMoscowTime())
         console.log('---');
-        
+
         // Здесь можно добавить:
         // 1. Сохранение в базу данных
         // 2. Отправку email уведомления
         // 3. Интеграцию с CRM системой
-        
+
         res.status(200).json({
             success: true,
             message: 'Заявка на лизинг успешно принята',
         });
-        
+
+
+         // Отправляем данные в CallTouch через POST
+        const calltouchResult = await sendToCallTouch({
+            subject: `zoomlion.gkvertikal.ru заявка на спец Лизинг`,
+            name: name.trim(),
+            phone: phone,
+            requestUrl: req.headers.referer || 'https://zoomlion.gkvertikal.ru/'
+        });
+        console.log('📊 Статус отправки в CallTouch:', calltouchResult.success ? 'Успех' : 'Ошибка');
+
     } catch (error) {
         console.error('❌ Ошибка при обработке заявки на лизинг:', error);
         res.status(500).json({
@@ -133,26 +246,35 @@ app.post('/api/submit-SpeacialLease', validateRequest(['name', 'phone']), (req, 
     }
 });
 
-app.post('/api/submit-contacts', validateRequest(['name', 'phone']), (req, res) => {
+app.post('/api/submit-contacts', validateRequest(['name', 'phone']), async(req, res) => {
     try {
         const { name, phone } = req.body;
-        
+
         console.log('📨 Получены новые контактные данные:');
         console.log('👤 Имя:', name.trim());
         console.log('📞 Телефон:', phone);
         console.log('⏰ Время:', getMoscowTime())
         console.log('---');
-        
+
         // Здесь можно добавить:
         // 1. Сохранение в базу данных
         // 2. Отправку email уведомления
         // 3. Интеграцию с CRM системой
-        
+
         res.status(200).json({
             success: true,
             message: 'Контактные данные успешно получены',
         });
         
+
+         // Отправляем данные в CallTouch через POST
+        const calltouchResult = await sendToCallTouch({
+            subject: `zoomlion.gkvertikal.ru заявка из секции контактов`,
+            name: name.trim(),
+            phone: phone,
+            requestUrl: req.headers.referer || 'https://zoomlion.gkvertikal.ru/'
+        });
+        console.log('📊 Статус отправки в CallTouch:', calltouchResult.success ? 'Успех' : 'Ошибка');
     } catch (error) {
         console.error('❌ Ошибка при обработке контактных данных:', error);
         res.status(500).json({
